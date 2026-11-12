@@ -24,6 +24,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import io
+import math
 import json
 import random
 import re
@@ -443,6 +444,22 @@ class ModelCalls(Protocol):
     def create(self, *, request_id: int = 0, **params: Unpack[ResponseCreateParamsBase]) -> Response: ...
 
 
+def grid_of(tiles: list[bytes], options: RenderOptions) -> bytes:
+    """Single-view renders laid out as the renderer lays out a multi-view request (render-service-js render-pool.js):
+    ceil(sqrt(n)) columns, row by row, views at (col * (size + gap), row * (size + gap)) on a black canvas."""
+    count = len(tiles)
+    cols = math.ceil(math.sqrt(count))
+    rows = math.ceil(count / cols)
+    size, gap = options.img_size, options.gap
+    sheet = Image.new("RGBA", (cols * size + (cols - 1) * gap, rows * size + (rows - 1) * gap), (0, 0, 0, 255))
+    for index, tile in enumerate(tiles):
+        image = Image.open(io.BytesIO(tile)).convert("RGBA")
+        sheet.paste(image, ((index % cols) * (size + gap), (index // cols) * (size + gap)))
+    buffer = io.BytesIO()
+    sheet.save(buffer, "PNG")
+    return buffer.getvalue()
+
+
 class PatientRenderer:
     """Waits out a busy renderer. A module that keeps missing the render deadline counts as a rejected module, so the
     model can make it lighter; otherwise its prompt could never finish, and a missing prompt loses its duels."""
@@ -451,6 +468,18 @@ class PatientRenderer:
         self._renderer = renderer
 
     def render(self, source: str, options: RenderOptions) -> bytes:
+        try:
+            return self._patient(source, options)
+        except RenderRejected as rejection:
+            if len(options.thetas) < 2 or "RENDER_TIMEOUT:" not in rejection.detail_json:
+                raise
+        # A heavy module can miss the deadline of a multi-view preview and still render each view in time: the same views,
+        # one request each (a single view that also misses its deadline is the rejection), laid out as the renderer does.
+        tiles = [self._patient(source, replace(options, thetas=(theta,), phis=(phi,)))
+                 for theta, phi in zip(options.thetas, options.phis, strict=True)]
+        return grid_of(tiles, options)
+
+    def _patient(self, source: str, options: RenderOptions) -> bytes:
         waits = iter(RENDER_WAITS)
         timeouts = 0
         busy = 2  # a full queue (503) is tried again every 2 to 10 seconds until it takes the render
