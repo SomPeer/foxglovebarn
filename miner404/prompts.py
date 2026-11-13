@@ -518,44 +518,6 @@ NEW module:
 ```"""
 
 
-# Merge of two rewrites of the same parent: one module that keeps, part by part, whichever rewrite matches the
-# target better; worded like MERGE_ROUND.
-MERGE_TWO = """Two rewrites of the same module follow: REWRITE A and REWRITE B. Their renders are above, in that order.
-Compare both with the target part by part (pose, proportions, each part's shape, counts, colors and materials) and write
-one module that keeps, for every part, whichever rewrite matches the target better, and fixes what both get wrong. Keep
-the overall structure of the rewrite that matches the target better. Return the complete module.
-
-REWRITE A module:
-```javascript
-{first}
-```
-
-REWRITE B module:
-```javascript
-{second}
-```"""
-
-MERGE_JOBS = MERGE_TWO.replace("""Compare both with the target part by part (pose, proportions, each part's shape, counts, colors and materials) and write
-one module that keeps, for every part, whichever rewrite matches the target better, and fixes what both get wrong. Keep
-the overall structure of the rewrite that matches the target better. Return the complete module.""", """REWRITE A worked on shape and pose; REWRITE B worked on colors, materials and surface detail. Compare both with the target
-and write one module with REWRITE A's geometry and pose and REWRITE B's colors, materials and surface detail, part by part.
-Where one rewrite made a part worse against the target, keep the other's version of it. Return the complete module.""")
-
-JOBS = {
-    "shape": """
-
-Your job in this rewrite is shape and pose. Compare the outline, proportions, part sizes and the way the object sits against
-the target, checking the views from slightly below and from above as carefully as the side views. Leave colors, materials
-and surface detail as they are.""",
-    "surface": """
-
-Your job in this rewrite is the surface. Compare colors, materials, gloss, transparency and fine surface detail (texture,
-grain, engraving, printed marks, small fittings) against the target, in all four front views. Leave the outline, proportions
-and pose as they are.""",
-}
-
-
-
 # Merge at the draft pick: every draft is critiqued against the target, then one module is merged from the best base and
 # the two other drafts with the most strengths.
 CRITIQUE_SYSTEM = "You compare several 3D reconstructions of one target image. Reply with JSON only."
